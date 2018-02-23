@@ -27,11 +27,25 @@ class pub_rviz():
         self.initial_waypoint()
         # Init subscribers and publishers
         self.sub_lookahead = rospy.Subscriber("/pure_pursuit/lookahead", Point, self.lookaheadCB, queue_size=1)
-        self.sub_model_state = rospy.Subscriber("/gazebo/model_states", ModelStates, self.model_stateCB, queue_size=1)
         self.sub_finish = rospy.Subscriber("/pure_pursuit/finished", Bool, self.finishCB, queue_size=1)
         self.odom_pub = rospy.Publisher("odometry_marker",Marker,queue_size=1)
         self.waypoint_pub = rospy.Publisher("waypoint_marker",Marker,queue_size=1)
         self.lookahead_pub = rospy.Publisher("lookahead_marker",Marker,queue_size=1)
+
+        while True:
+            rospy.wait_for_service('/gazebo/get_model_state')
+            try:
+                get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+                model_state = get_model_state('duckiebot',"")
+                #print msg
+            except rospy.ServiceException, e:
+                pass
+            self.robot_pose.x = model_state.pose.position.x
+            self.robot_pose.y = model_state.pose.position.y
+            self.robot_pose.z = model_state.pose.position.z
+            if not self.finish:
+                self.pub_odom()    
+                self.pub_to_rviz()
 
     def initial_lookahead(self):
         #self.lookahead = Marker()
@@ -116,13 +130,6 @@ class pub_rviz():
         self.lookahead.points.append(q)
         #print q
 
-    def model_stateCB(self, msg):
-        self.robot_pose.x = msg.pose[1].position.x
-        self.robot_pose.y = msg.pose[1].position.y
-        self.robot_pose.z = msg.pose[1].position.z
-        if not self.finish:
-            self.pub_odom()    
-            self.pub_to_rviz()
 
 if __name__=="__main__":
     # Tell ROS that we're making a new node.

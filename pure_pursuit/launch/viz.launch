@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
 	<param name="use_gui" value="False"/>
-   	<param name="robot_description" command="$(find xacro)/xacro.py $(find bot)/urdf/bot.xacro veh:=david"/>
+   	<param name="robot_description" command="$(find xacro)/xacro.py $(find marine_duckiebot_description)/urdf/mybot.xacro veh:=david"/>
 
    	<node name="rviz" pkg="rviz" type="rviz" args="-d $(find pure_pursuit)/config/rviz/pure_pursuit.rviz" />
    	<node name="pub_rviz" pkg="pure_pursuit" type="pub_rviz.py" output="screen" clear_params="true" required="true">

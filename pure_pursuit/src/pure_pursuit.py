@@ -16,7 +16,7 @@ This program utilizes pure pursuit to follow a given trajectory.
 class gazebo_pure_pursuit():
     def __init__(self):
         # Init attributes
-        self.default_speed = 0.5
+        self.default_speed = 0.7
         self.speed = self.default_speed
         self.steering_angle = 0
         self.robot_length = 0.22
@@ -33,25 +33,57 @@ class gazebo_pure_pursuit():
         self.active = True
         self.start = True
         # Init subscribers and publishers
-        self.sub_model_state = rospy.Subscriber("/gazebo/model_states", ModelStates, self.model_stateCB, queue_size=1)
         self.pub_gazebo = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         self.pub_lookahead = rospy.Publisher('/pure_pursuit/lookahead', Point, queue_size=1)
         self.pub_finish = rospy.Publisher('/pure_pursuit/finished', Bool, queue_size=1)
-
-    '''def way_point(self):
-        waypoint_name = ["my_cylinder", "my_cylinder_0", "my_cylinder_1", "my_cylinder_2"]
-
-        for i in range(4):
+        while True:
             rospy.wait_for_service('/gazebo/get_model_state')
             try:
                 get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
-                model_state = get_model_state(waypoint_name[i],"")
-                self.waypoints.append((model_state.pose.position.x, model_state.pose.position.y))
+                model_state = get_model_state('duckiebot',"")
+                msg = model_state
+                #print msg
             except rospy.ServiceException, e:
-                print "Service call failed: %s"%e
+                pass
+            if not self.active:
+                #break
+                return 
+            finish = Bool()
+            finish.data = False
+            self.pub_finish.publish(finish)
+            quaternion_msg = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
+            euler = tf.transformations.euler_from_quaternion(quaternion_msg)
+            #print euler[2]
+            #print
+            self.robot_pose = (msg.pose.position.x, msg.pose.position.y, euler[2])
+            # print self.robot_pose
 
-        print self.waypoints '''
+            #print 'robot_pose:', self.robot_pose#, 'waypoints:', self.waypoints
+            self.destination_pose = self.pure_pursuit()
 
+            if self.destination_pose == None:
+                self.active = False
+                print "approach destination  "
+                self.gazebo_cmd(0,0)
+                msg = Bool()
+                msg.data = True
+                self.pub_finish.publish(msg)
+
+            else:
+                self.publish_lookhead(self.destination_pose)
+                self.speed = self.default_speed
+                distance_to_destination= self.getDistance(self.robot_pose, self.destination_pose)
+                angle_to_destination = -self.getAngle(self.robot_pose, self.destination_pose)       
+                # self.steering_angle = np.arctan((2 * self.robot_length * np.sin(angle_to_destination)) / distance_to_destination)         
+                # print "robot_head",euler[2]*180/math.pi,"angle_to_destination", angle_to_destination*180/math.pi
+                #print angle_to_destination
+                w = 3*((angle_to_destination + math.pi) / (2 * math.pi) - 0.5)
+                '''if w > 0:
+                    w = 1
+                else:
+                    w = -1'''
+                #print angle_to_destination
+                self.gazebo_cmd(self.speed,w)
     def publish_lookhead(self, lookahead):
         msg = Point()
         msg.x, msg.y = lookahead[:2]
@@ -69,50 +101,6 @@ class gazebo_pure_pursuit():
         model_state_msg.angular.z = w
         
         self.pub_gazebo.publish(model_state_msg)
-
-    def model_stateCB(self, msg):
-        rospy.wait_for_service('/gazebo/get_model_state')
-        get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
-        model_state = get_model_state('duckiebot',"")
-        msg = model_state
-        if not self.active:
-            return 
-        finish = Bool()
-        finish.data = False
-        self.pub_finish.publish(finish)
-        quaternion_msg = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
-        euler = tf.transformations.euler_from_quaternion(quaternion_msg)
-        #print euler[2]
-        #print
-        self.robot_pose = (msg.pose.position.x, msg.pose.position.y, euler[2])
-        # print self.robot_pose
-
-        # print 'robot_pose:', self.robot_pose#, 'waypoints:', self.waypoints
-        self.destination_pose = self.pure_pursuit()
-
-        if self.destination_pose == None:
-            self.active = False
-            print "approach destination  "
-            self.gazebo_cmd(0,0)
-            msg = Bool()
-            msg.data = True
-            self.pub_finish.publish(msg)
-
-        else:
-            self.publish_lookhead(self.destination_pose)
-            self.speed = self.default_speed
-            distance_to_destination= self.getDistance(self.robot_pose, self.destination_pose)
-            angle_to_destination = -self.getAngle(self.robot_pose, self.destination_pose)       
-            # self.steering_angle = np.arctan((2 * self.robot_length * np.sin(angle_to_destination)) / distance_to_destination)         
-            # print "robot_head",euler[2]*180/math.pi,"angle_to_destination", angle_to_destination*180/math.pi
-            #print angle_to_destination
-            w = 5*((angle_to_destination + math.pi) / (2 * math.pi) - 0.5)
-            '''if w > 0:
-                w = 1
-            else:
-                w = -1'''
-            #print angle_to_destination
-            self.gazebo_cmd(self.speed,w)
 
     # calculate the distance between two points
     def distanceBtwnPoints(self, x1, y1, x2, y2):
@@ -249,7 +237,14 @@ class gazebo_pure_pursuit():
             #print "last one"
             if self.distanceBtwnPoints(x_endpoint, y_endpoint, x_robot, y_robot) <= self.threshold_proximity:
                 return None
-
+        if self.distanceBtwnPoints(x_robot, y_robot, wp[cwpi][0], wp[cwpi][1]) <= self.lookahead_distance :
+            print "Arrived waypoint : %d"%(cwpi)
+            if self.current_waypoint_index < len(self.waypoints)-1:
+                self.current_waypoint_index = self.current_waypoint_index + 1
+            else:
+                return None
+            if self.start:
+                self.start = False
         if self.start:
             fake_robot_waypoint = (x_robot, y_robot)
         else:
@@ -276,14 +271,15 @@ class gazebo_pure_pursuit():
             #rospy.loginfo("Oh-No")
             #rospy.loginfo(self.current_waypoint_index)
             return fake_robot_waypoint
-        if round(x_intersect,3) == round(wp[cwpi][0], 3) and round(y_intersect, 3) == round(wp[cwpi][1], 3) or self.distanceBtwnPoints(x_robot, y_robot, wp[cwpi][0], wp[cwpi][1]) <= self.lookahead_distance :
+        #print self.distanceBtwnPoints(x_robot, y_robot, wp[cwpi][0], wp[cwpi][1]) - self.lookahead_distance
+        '''if round(x_intersect,3) == round(wp[cwpi][0], 3) and round(y_intersect, 3) == round(wp[cwpi][1], 3) or self.distanceBtwnPoints(x_robot, y_robot, wp[cwpi][0], wp[cwpi][1]) <= self.lookahead_distance :
             print "Arrived waypoint : %d"%(cwpi)
             if self.current_waypoint_index < len(self.waypoints)-1:
                 self.current_waypoint_index = self.current_waypoint_index + 1
             else:
                 return None
             if self.start:
-                self.start = False
+                self.start = False'''
         return (x_intersect, y_intersect)
 
 if __name__=="__main__":
