@@ -1,8 +1,8 @@
 path:
   - !!python/tuple [0,0]
-  - !!python/tuple [2,2]
-  - !!python/tuple [-1,1]
-  - !!python/tuple [-3,3]
-  - !!python/tuple [-3,0]
-  - !!python/tuple [1,-2]
+  - !!python/tuple [4,4]
+  - !!python/tuple [0,8]
+  - !!python/tuple [-4,0]
+  - !!python/tuple [-4,-8]
+  - !!python/tuple [4,-8]
   - !!python/tuple [0,0]

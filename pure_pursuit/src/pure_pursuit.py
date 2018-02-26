@@ -16,7 +16,7 @@ This program utilizes pure pursuit to follow a given trajectory.
 class gazebo_pure_pursuit():
     def __init__(self):
         # Init attributes
-        self.default_speed = 0.7
+        self.default_speed = 0.5
         self.speed = self.default_speed
         self.steering_angle = 0
         self.robot_length = 0.22
